@@ -8,6 +8,7 @@ import models.YouTubeService;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.*;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -62,22 +63,18 @@ public class WordStatsActor extends AbstractActor {
         String query = message.query;
         ActorRef originalSender = message.originalSender;
 
-//        CompletionStage<JsonNode> channelDetailsStage = youTubeService.fetchChannelDetails(query);
         CompletionStage<JsonNode> videosStage = youTubeService.fetchVideos(query, 50);
-        System.out.print("videosStage print");
         videosStage.thenApply(videosResponse -> {
                     if (videosResponse == null) {
-                        return new FetchWordStatsResponse(query, originalSender);
+                        return new WordStatsResponse(query, Collections.emptyMap(), originalSender);
                     }
                     Map<String, Long> wordCalculation = calculateWordFrequency(videosResponse);
-
-
-                    return new WordStatsResponse(query,  wordCalculation, originalSender);
-                }).thenAccept(response -> originalSender.tell(response, getSelf()));
-//                .exceptionally(ex -> {
-//                    originalSender.tell(new ChannelProfileResponse(channelId, null, null, originalSender), getSelf());
-//                    return null;
-//                });
+                    return new WordStatsResponse(query, wordCalculation, originalSender);
+                })
+                .exceptionally(ex -> {
+                    return new WordStatsResponse(query, Collections.emptyMap(), originalSender);
+                })
+                .thenAccept(response -> originalSender.tell(response, getSelf()));
     }
 
     @Override
@@ -133,7 +130,10 @@ public class WordStatsActor extends AbstractActor {
     }
 
     public static Map<String, Long> calculateWordFrequency(JsonNode json) {
+        Logger logger = Logger.getLogger(WordStatsActor.class.getName());
+
         if (json == null || !json.has("items")) {
+            logger.warning("JsonNode is null or does not contain 'items'");
             return new LinkedHashMap<>();
         }
 
@@ -142,8 +142,14 @@ public class WordStatsActor extends AbstractActor {
                     StringBuilder text = new StringBuilder();
                     if (item.has("snippet")) {
                         JsonNode snippet = item.get("snippet");
-                        text.append(snippet.path("title").asText("")).append(" ")
-                                .append(snippet.path("description").asText(""));
+                        if (snippet != null) {
+                            text.append(snippet.path("title").asText("")).append(" ")
+                                    .append(snippet.path("description").asText(""));
+                        } else {
+                            logger.warning("Snippet is null for item: " + item);
+                        }
+                    } else {
+                        logger.warning("Item does not contain 'snippet': " + item);
                     }
                     return text.toString();
                 })
@@ -163,5 +169,6 @@ public class WordStatsActor extends AbstractActor {
                         Map.Entry::getValue,
                         (e1, e2) -> e1,
                         LinkedHashMap::new
-                ));}
+                ));
+    }
 }

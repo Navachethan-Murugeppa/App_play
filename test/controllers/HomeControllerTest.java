@@ -100,8 +100,9 @@ public class HomeControllerTest {
         String query = "test query";
 
         Map<String, Long> mockWordStats = Map.of("word1", 5L, "word2", 3L);
+        ActorRef mockActorRef = mock(ActorRef.class); // Mock the ActorRef
         WordStatsActor.WordStatsResponse mockResponse =
-                new WordStatsActor.WordStatsResponse(query, mockWordStats);
+                new WordStatsActor.WordStatsResponse(query, mockWordStats, mockActorRef);
 
         Mockito.doReturn(CompletableFuture.completedFuture(mockResponse))
                 .when(mockSupervisorActor).tell(any(), any());
