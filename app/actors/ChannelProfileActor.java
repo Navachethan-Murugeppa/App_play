@@ -71,16 +71,6 @@ public class ChannelProfileActor extends AbstractActor {
                 });
     }
 
-    @Override
-    public void preStart() {
-        // Hook for actions during actor start
-    }
-
-    @Override
-    public void postStop() {
-        // Hook for actions during actor stop
-    }
-
     /**
      * Message class to request fetching channel profile and videos.
      */

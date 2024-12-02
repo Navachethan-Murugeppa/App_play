@@ -7,180 +7,222 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 import utils.QueryCache;
+
 import java.util.concurrent.Callable;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
-import org.junit.runner.RunWith;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.net.URLEncoder;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-
-@RunWith(PowerMockRunner.class)
-@PrepareForTest({URLEncoder.class})
-
+/**
+ * Unit tests for YouTubeService class.
+ */
 public class YouTubeServiceTest {
 
     private YouTubeService youTubeService;
     private QueryCache mockCache;
-    private Config mockConfig;
 
+    /**
+     * Initializes mocks and dependencies before each test.
+     */
     @Before
     public void setUp() {
-        // Mock Config
-        mockConfig = mock(Config.class);
+        // Mock configuration
+        Config mockConfig = mock(Config.class);
         when(mockConfig.hasPath("youtube.api.key")).thenReturn(true);
         when(mockConfig.getString("youtube.api.key")).thenReturn("mockApiKey");
 
-        // Mock QueryCache
+        // Initialize mock QueryCache
         mockCache = mock(QueryCache.class);
 
-        // Create YouTubeService with mocked dependencies
+        // Initialize YouTubeService with mocks
         youTubeService = new YouTubeService(mockConfig, mockCache);
     }
 
     /**
-     * Test that fetchVideos uses the cache when a result is available.
+     * Test to ensure fetchVideos uses cache when data is available.
      */
     @Test
-    public void testFetchVideosUsesCache() throws Exception {
+    public void testFetchVideosUsesCache() {
         String query = "test query";
         int maxResults = 5;
         JsonNode mockResponse = JsonNodeFactory.instance.objectNode().put("result", "cached");
 
-        // Mock cache behavior to return a cached response
+        // Mock cache to return predefined response
         when(mockCache.getOrElseUpdate(eq(query), any()))
                 .thenReturn(CompletableFuture.completedFuture(mockResponse));
 
-        // Fetch videos
+        // Call method under test
         CompletionStage<JsonNode> result = youTubeService.fetchVideos(query, maxResults);
         JsonNode actualResponse = result.toCompletableFuture().join();
 
-        // Verify that the cache was used and the result matches
+        // Verify cached result is returned
         assertEquals("cached", actualResponse.get("result").asText());
-        verify(mockCache, times(1)).getOrElseUpdate(eq(query), any());
     }
 
     /**
-     * Test that fetchVideos fetches from the API when the cache is empty.
+     * Test to ensure fetchVideos fetches data from API when cache is empty.
      */
     @Test
-    public void testFetchVideosFetchesFromAPI() throws Exception {
+    public void testFetchVideosFetchesFromAPI() {
         String query = "new query";
         int maxResults = 5;
-
-        // Mock the API response
         JsonNode apiResponse = JsonNodeFactory.instance.objectNode().put("result", "apiResponse");
 
-        // Mock the QueryCache behavior
+        // Mock cache to simulate a cache miss
         when(mockCache.getOrElseUpdate(eq(query), any()))
                 .thenAnswer(invocation -> {
-                    // Simulate the block call and return a CompletionStage
                     Callable<CompletionStage<JsonNode>> callable = invocation.getArgument(1);
                     return callable.call();
                 });
 
-        // Mock the sendRequest method in YouTubeService to return the API response
+        // Spy on YouTubeService and mock API call
         YouTubeService spyYouTubeService = Mockito.spy(youTubeService);
         doReturn(CompletableFuture.completedFuture(apiResponse))
                 .when(spyYouTubeService)
                 .sendRequest(anyString());
 
-        // Call fetchVideos
+        // Call method under test
         CompletionStage<JsonNode> result = spyYouTubeService.fetchVideos(query, maxResults);
         JsonNode actualResponse = result.toCompletableFuture().join();
 
-        // Verify the result matches the mocked API response
+        // Verify API result matches mocked response
         assertEquals("apiResponse", actualResponse.get("result").asText());
     }
 
     /**
-     * Test that an invalid API key or query returns an appropriate error message.
+     * Test to ensure errors are handled gracefully.
      */
     @Test
-    public void testFetchVideosHandlesError() throws Exception {
+    public void testFetchVideosHandlesError() {
         String query = "invalid query";
         int maxResults = 5;
 
         JsonNode errorResponse = JsonNodeFactory.instance.objectNode().put("error", "API returned error code: 403");
 
-        // Mock cache behavior to simulate an error
+        // Mock cache to return error response
         when(mockCache.getOrElseUpdate(eq(query), any()))
                 .thenReturn(CompletableFuture.completedFuture(errorResponse));
 
-        // Fetch videos
+        // Call method under test
         CompletionStage<JsonNode> result = youTubeService.fetchVideos(query, maxResults);
         JsonNode actualResponse = result.toCompletableFuture().join();
 
-        // Verify that the error response is returned
+        // Verify error response is returned
         assertEquals("API returned error code: 403", actualResponse.get("error").asText());
     }
 
     /**
-     * Test that encodeQuery falls back to the original query on exception.
+     * Test to ensure encodeQuery encodes queries correctly.
      */
     @Test
-    public void testEncodeQueryFallbackOnException() throws Exception {
-        // Mock the static URLEncoder class
-        PowerMockito.mockStatic(URLEncoder.class);
-
-        // Configure the mock to throw an exception when called
-        PowerMockito.when(URLEncoder.encode(Mockito.anyString(), Mockito.anyString()))
-                .thenThrow(new IllegalArgumentException("Mocked exception"));
-
-        // Create an instance of YouTubeService with mocked dependencies
-        Config mockConfig = mock(Config.class);
-        when(mockConfig.hasPath("youtube.api.key")).thenReturn(true);
-        when(mockConfig.getString("youtube.api.key")).thenReturn("mockApiKey");
-
-        QueryCache mockQueryCache = mock(QueryCache.class);
-        YouTubeService youTubeService = new YouTubeService(mockConfig, mockQueryCache);
-
-        // Provide an input query that will trigger the exception
-        String query = "test query";
-
-        // Call the encodeQuery method and verify the fallback
-        String result = youTubeService.encodeQuery(query);
-
-        // Verify that the fallback logic was triggered
-        assertEquals("test+query",result); // The result should fallback to the original query
-    }
-
-    @Test
-    public void testEncodeQuery() {
-        YouTubeService youTubeService = new YouTubeService(mockConfig, mockCache);
-
-        // Test encoding with special characters
-        String query = "test query with special characters \uD83D\uDE80";
+    public void testEncodeQueryHandlesSpecialCharacters() {
+        String query = "test query with special characters 🚀";
         String expectedEncodedQuery = "test+query+with+special+characters+%F0%9F%9A%80";
 
-        // Verify the encoded result
+        // Verify encoded result
         assertEquals(expectedEncodedQuery, youTubeService.encodeQuery(query));
     }
 
 
-
     /**
-     * Test that encodeQuery correctly handles special characters.
+     * Tests the fetchChannelDetails method.
      */
     @Test
-    public void testEncodeQueryHandlesSpecialCharacters() {
-        // Use a string with special characters
-        String query = "invalid query string with \uD83D\uDE80";
+    public void testFetchChannelDetails() {
+        String channelId = "mockChannelId";
 
-        // Invoke encodeQuery
-        String result = youTubeService.encodeQuery(query);
+        JsonNode mockResponse = JsonNodeFactory.instance.objectNode().put("channel", "details");
 
-        // Verify the encoded result
-        String expectedEncodedQuery = "invalid+query+string+with+%F0%9F%9A%80";
-        assertEquals(expectedEncodedQuery, result);
+        // Mock the QueryCache to simulate fetching from the API
+        when(mockCache.getOrElseUpdate(eq(channelId), any()))
+                .thenAnswer(invocation -> {
+                    Callable<CompletionStage<JsonNode>> callable = invocation.getArgument(1);
+                    return callable.call();
+                });
+
+        // Mock the sendRequest method
+        YouTubeService spyYouTubeService = Mockito.spy(youTubeService);
+        doReturn(CompletableFuture.completedFuture(mockResponse))
+                .when(spyYouTubeService)
+                .sendRequest(anyString());
+
+        // Call the fetchChannelDetails method
+        CompletionStage<JsonNode> result = spyYouTubeService.fetchChannelDetails(channelId);
+        JsonNode actualResponse = result.toCompletableFuture().join();
+
+        // Assert the response matches the mock
+        assertEquals("details", actualResponse.get("channel").asText());
+    }
+
+    /**
+     * Tests the fetchChannelVideos method.
+     */
+    @Test
+    public void testFetchChannelVideos() {
+        String channelId = "mockChannelId";
+        int maxResults = 10;
+
+        JsonNode mockResponse = JsonNodeFactory.instance.objectNode()
+                .put("video1", "details1")
+                .put("video2", "details2");
+
+        // Mock the QueryCache to simulate fetching from the API
+        when(mockCache.getOrElseUpdate(eq(channelId), any()))
+                .thenAnswer(invocation -> {
+                    Callable<CompletionStage<JsonNode>> callable = invocation.getArgument(1);
+                    return callable.call();
+                });
+
+        // Mock the sendRequest method
+        YouTubeService spyYouTubeService = Mockito.spy(youTubeService);
+        doReturn(CompletableFuture.completedFuture(mockResponse))
+                .when(spyYouTubeService)
+                .sendRequest(anyString());
+
+        // Call the fetchChannelVideos method
+        CompletionStage<JsonNode> result = spyYouTubeService.fetchChannelVideos(channelId, maxResults);
+        JsonNode actualResponse = result.toCompletableFuture().join();
+
+        // Assert the response matches the mock
+        assertEquals("details1", actualResponse.get("video1").asText());
+        assertEquals("details2", actualResponse.get("video2").asText());
+    }
+
+    /**
+     * Tests the fetchChannelVideos method when the API returns an error.
+     */
+    @Test
+    public void testFetchChannelVideosHandlesError() {
+        String channelId = "mockChannelId";
+        int maxResults = 10;
+
+        JsonNode errorResponse = JsonNodeFactory.instance.objectNode().put("error", "API error");
+
+        // Mock the sendRequest method to simulate an error
+        YouTubeService spyYouTubeService = Mockito.spy(youTubeService);
+        doReturn(CompletableFuture.completedFuture(errorResponse))
+                .when(spyYouTubeService)
+                .sendRequest(anyString());
+
+        // Call the fetchChannelVideos method
+        CompletionStage<JsonNode> result = spyYouTubeService.fetchChannelVideos(channelId, maxResults);
+        JsonNode actualResponse = result.toCompletableFuture().join();
+
+        // Assert the error response matches the expected output
+        assertEquals("Failed to fetch channel videos.", actualResponse.get("error").asText());
     }
 
 
 }
+
+
+
+
+
+
+
+

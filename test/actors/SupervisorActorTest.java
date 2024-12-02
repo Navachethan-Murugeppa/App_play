@@ -1,25 +1,25 @@
 package actors;
 
-import akka.actor.ActorSystem;
-import akka.actor.ActorRef;
-import akka.actor.Props;
-import akka.testkit.javadsl.TestKit;
 import akka.actor.AbstractActor;
-import akka.actor.SupervisorStrategy;
-import akka.actor.OneForOneStrategy;
-import akka.pattern.Patterns;
+import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
+import akka.actor.Props;
+import akka.actor.typed.javadsl.Receive;
+import akka.testkit.javadsl.TestKit;
 import models.YouTubeService;
-import utils.SessionManager;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import play.mvc.Http;
+import utils.SessionManager;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.*;
-import static org.junit.Assert.*;
 
 /**
  * JUnit tests for the SupervisorActor class.
- * These tests validate the creation of UserActors and ReadabilityActors, and the Supervisor strategy.
+ * These tests validate the creation of UserActors, ReadabilityActors, ChannelProfileActors, and the Supervisor strategy.
  */
 public class SupervisorActorTest {
 
@@ -44,7 +44,7 @@ public class SupervisorActorTest {
 
     @After
     public void tearDown() {
-        actorSystem.terminate();
+        TestKit.shutdownActorSystem(actorSystem);
     }
 
     /**
@@ -71,41 +71,12 @@ public class SupervisorActorTest {
      */
     @Test
     public void testSupervisorStrategy() {
-        // Define an actor that throws a RuntimeException
-        ActorRef actorRef = actorSystem.actorOf(Props.create(TestActor.class));
+        ActorRef testActor = actorSystem.actorOf(Props.create(TestActor.class));
+        testActor.tell("Test message", probe.getRef());
 
-        // Send a message that causes a RuntimeException
-        actorRef.tell("Test message", probe.getRef());
-
-        // Expect the actor to be restarted by the supervisor (no immediate response)
-        probe.expectNoMessage();  // No message should be received initially due to restart
-
-        // After restart, send another message to check if the actor has recovered
-        actorRef.tell("Another message", probe.getRef());
-
-        // Expect the actor to respond after restart
+        probe.expectNoMessage(); // Expect no immediate message due to restart
+        testActor.tell("Another message", probe.getRef());
         probe.expectMsg("Message received after restart");
-    }
-
-    /**
-     * A simple actor that throws a RuntimeException for testing supervisor strategy.
-     */
-    public static class TestActor extends AbstractActor {
-        private static int restartCounter = 0;
-
-        @Override
-        public Receive createReceive() {
-            return receiveBuilder()
-                    .match(String.class, msg -> {
-                        if (msg.equals("Test message")) {
-                            throw new RuntimeException("Test Exception");  // This triggers the supervisor's strategy
-                        }
-                        // After the actor restarts, we count the message
-                        restartCounter++;
-                        getSender().tell("Message received after restart", getSelf());
-                    })
-                    .build();
-        }
     }
 
     /**
@@ -128,15 +99,63 @@ public class SupervisorActorTest {
     }
 
     /**
+     * Test for handling FetchChannelProfileMessage.
+     */
+    @Test
+    public void testFetchChannelProfileMessage() {
+        String channelId = "mock-channel-id";
+
+        // Send the FetchChannelProfileMessage to the SupervisorActor
+        supervisorActor.tell(new SupervisorActor.FetchChannelProfileMessage(channelId, mockYouTubeService), probe.getRef());
+
+        // Expect no direct response as the message will be forwarded to the ChannelProfileActor
+        probe.expectNoMessage();
+    }
+
+    /**
+     * Test for handling ChannelProfileResponse forwarding.
+     */
+    @Test
+    public void testHandleChannelProfileResponse() {
+        String channelId = "mock-channel-id";
+
+        SupervisorActor.FetchChannelProfileMessage fetchMessage = new SupervisorActor.FetchChannelProfileMessage(channelId, mockYouTubeService);
+        supervisorActor.tell(fetchMessage, probe.getRef());
+
+        // Simulate a response from the ChannelProfileActor
+        ChannelProfileActor.ChannelProfileResponse response =
+                new ChannelProfileActor.ChannelProfileResponse(channelId, null, null, probe.getRef());
+        supervisorActor.tell(response, probe.getRef());
+
+        // Expect the response to be forwarded back to the original sender
+        ChannelProfileActor.ChannelProfileResponse forwardedResponse = probe.expectMsgClass(ChannelProfileActor.ChannelProfileResponse.class);
+        assertEquals(response.channelId, forwardedResponse.channelId);
+    }
+
+    /**
      * Test to ensure that SupervisorActor properly handles unhandled messages.
      */
     @Test
     public void testUnhandledMessages() {
-        // Send an unhandled message to the SupervisorActor
         supervisorActor.tell("UnhandledMessage", probe.getRef());
-
-        // Expect the SupervisorActor to respond with "Unhandled message"
         String response = probe.expectMsgClass(String.class);
         assertEquals("Unhandled message", response);
+    }
+
+    /**
+     * A simple actor that throws a RuntimeException for testing supervisor strategy.
+     */
+    public static class TestActor extends AbstractActor {
+        @Override
+        public Receive createReceive() {
+            return receiveBuilder()
+                    .match(String.class, msg -> {
+                        if ("Test message".equals(msg)) {
+                            throw new RuntimeException("Test Exception");
+                        }
+                        getSender().tell("Message received after restart", getSelf());
+                    })
+                    .build();
+        }
     }
 }
