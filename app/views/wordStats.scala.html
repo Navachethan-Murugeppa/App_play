@@ -1,0 +1,22 @@
+@(query: String, wordFrequency: Map[String, Long])
+
+@main("Word Frequency Analysis") {
+<h1>Word Frequency Analysis for "@query"</h1>
+
+<table>
+    <thead>
+    <tr>
+        <th>Word</th>
+        <th>Frequency</th>
+    </tr>
+    </thead>
+    <tbody>
+    @for((word, count) <- wordFrequency) {
+    <tr>
+        <td>@word</td>
+        <td>@count</td>
+    </tr>
+    }
+    </tbody>
+</table>
+}

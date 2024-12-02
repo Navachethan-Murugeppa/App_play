@@ -1,0 +1,86 @@
+@import com.fasterxml.jackson.databind.JsonNode
+@import scala.jdk.CollectionConverters._
+
+@(channelInfo: JsonNode, videos: java.util.List[JsonNode])
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>@channelInfo.path("snippet").path("title").asText("Channel Title")</title>
+        <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: auto; color: #333; }
+                h1 { color: #222; font-size: 2em; margin-bottom: 0; }
+                h2 { color: #333; font-size: 1.5em; margin-top: 20px; }
+                p, ul { font-size: 1em; line-height: 1.5; }
+                a { text-decoration: none; color: #0073e6; }
+                a:hover { text-decoration: underline; }
+
+                /* Channel Details Container */
+                .channel-details-container {
+                    background-color: #f1f1f1;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin-top: 20px;
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                }
+
+                /* Video List Container */
+                .video-list-container {
+                    background-color: #f9f9f9;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin-top: 20px;
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                }
+
+                .video-list { list-style: none; padding: 0; margin: 0; }
+                .video-item { display: flex; align-items: flex-start; margin-bottom: 20px; }
+                .video-thumbnail { margin-right: 15px; }
+                .video-thumbnail img { width: 120px; height: 90px; border-radius: 5px; }
+                .video-details p { margin: 5px 0; }
+                .video-title { font-weight: bold; font-size: 1.1em; color: #0073e6; }
+        </style>
+    </head>
+    <body>
+            <!-- Channel Title and Details in a Box -->
+        <h1>
+            Channel Title:
+            <a href="https://www.youtube.com/channel/@channelInfo.path("id").asText()" target="_blank">
+            @channelInfo.path("snippet").path("title").asText("Channel Title")
+            </a>
+        </h1>
+        <div class="channel-details-container">
+            <p><strong>Description:</strong> @channelInfo.path("snippet").path("description").asText("No Description Available")</p>
+            <p><strong>Subscribers:</strong> @channelInfo.path("statistics").path("subscriberCount").asText("N/A")</p>
+            <p><strong>Channel Creation Date:</strong> @channelInfo.path("snippet").path("publishedAt").asText("N/A")</p>
+            <p><strong>Total Videos:</strong> @channelInfo.path("statistics").path("videoCount").asText("N/A")</p>
+            <p><strong>Total Views:</strong> @channelInfo.path("statistics").path("viewCount").asText("N/A")</p>
+        </div>
+
+            <!-- Display Latest Videos in a Box -->
+        <div class="video-list-container">
+            <h2>Latest Videos</h2>
+            <ul class="video-list">
+            @for((video, index) <- videos.asScala.zipWithIndex) {
+                <li class="video-item">
+                    <div class="video-thumbnail">
+                        <img src="@video.path("snippet").path("thumbnails").path("medium").path("url").asText()" alt="Thumbnail">
+                    </div>
+                    <div class="video-details">
+                        <p class="video-title">
+                            <strong>@(index + 1). </strong>
+                            <a href="https://www.youtube.com/watch?v=@video.path("id").path("videoId").asText()" target="_blank">
+                            @video.path("snippet").path("title").asText("Untitled Video")
+                            </a>
+                        </p>
+                        <p><strong>Published At:</strong> @video.path("snippet").path("publishedAt").asText("N/A")</p>
+                        <p><strong>Description:</strong> @video.path("snippet").path("description").asText("No Description Available")</p>
+                    </div>
+                </li>
+            }
+            </ul>
+        </div>
+    </body>
+</html>

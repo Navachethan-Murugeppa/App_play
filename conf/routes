@@ -1,0 +1,17 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+# Home Page
+GET     /                       controllers.HomeController.index()
+
+# WebSocket for searching YouTube videos
+GET     /ws/search              controllers.HomeController.searchViaWebSocket
+
+# Channel Profile
+GET     /channelProfile/:channelId    controllers.HomeController.channelProfile(channelId: String)
+# To get the word frequency of most used words
+GET     /wordFrequency/:query               controllers.HomeController.showWordFrequency(query: String)
+
+# Map static resources from the /public folder to the /assets URL path
+GET     /assets/*file                 controllers.Assets.versioned(path="/public", file: Asset)
