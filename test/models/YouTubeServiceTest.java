@@ -8,6 +8,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 import utils.QueryCache;
 
+import java.net.http.HttpClient;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -25,6 +26,7 @@ public class YouTubeServiceTest {
     private YouTubeService youTubeService;
     private QueryCache mockCache;
 
+
     /**
      * Initializes mocks and dependencies before each test.
      */
@@ -38,8 +40,11 @@ public class YouTubeServiceTest {
         // Initialize mock QueryCache
         mockCache = mock(QueryCache.class);
 
+
+
         // Initialize YouTubeService with mocks
         youTubeService = new YouTubeService(mockConfig, mockCache);
+
     }
 
     /**

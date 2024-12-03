@@ -13,6 +13,8 @@ import org.junit.Test;
 import play.mvc.Http;
 import utils.SessionManager;
 
+import java.time.Duration;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.*;
@@ -130,6 +132,22 @@ public class SupervisorActorTest {
         // Expect the response to be forwarded back to the original sender
         ChannelProfileActor.ChannelProfileResponse forwardedResponse = probe.expectMsgClass(ChannelProfileActor.ChannelProfileResponse.class);
         assertEquals(response.channelId, forwardedResponse.channelId);
+    }
+
+    @Test
+    public void testHandleWordStatsResponse() {
+        String query = "test-query";
+
+        // Send the FetchWordStatsMessage to the SupervisorActor
+        supervisorActor.tell(new SupervisorActor.FetchWordStatsMessage(query, mockYouTubeService), probe.getRef());
+
+        // Simulate a response from the WordStatsActor
+        WordStatsActor.WordStatsResponse response = new WordStatsActor.WordStatsResponse(query, null, probe.getRef());
+        supervisorActor.tell(response, probe.getRef());
+
+        // Expect the response to be forwarded back to the original sender
+        WordStatsActor.WordStatsResponse forwardedResponse = probe.expectMsgClass(WordStatsActor.WordStatsResponse.class);
+        assertEquals(response.query, forwardedResponse.query);
     }
 
     /**
